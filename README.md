@@ -687,10 +687,10 @@ The following command will create or update the CRD based on the packageID, chai
 ```bash
 kubectl hlf externalchaincode sync --image=kfsoftware/chaincode-external:latest \
     --name=$CHAINCODE_NAME \
-    --namespace=default \
+    --namespace=fabric \
     --package-id=$PACKAGE_ID \
     --tls-required=false \
-    --replicas=1 --namespace fabric
+    --replicas=1 
 ```
 
 
