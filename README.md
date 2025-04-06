@@ -105,20 +105,10 @@ EOF
 kind create cluster --config=./kind-config.yaml
 
 ```
-
-## Install Kubernetes operator
-
-In this step we are going to install the kubernetes operator for Fabric, this will install:
-
-- CRD (Custom Resource Definitions) to deploy Certification Fabric Peers, Orderers and Authorities
-- Deploy the program to deploy the nodes in Kubernetes
-
-To install helm: [https://helm.sh/docs/intro/install/](https://helm.sh/docs/intro/install/)
+### Make New Namespace
 
 ```bash
-helm repo add kfs https://kfsoftware.github.io/hlf-helm-charts --force-update
-
-helm install hlf-operator --version=1.11.1 -- kfs/hlf-operator
+kubectl create namepace fabric
 ```
 
 
@@ -275,14 +265,14 @@ Set storage class depending on the Kubernetes cluster you are using:
 # for Kind
 export SC_NAME=standard
 # for K3D
-export SC_NAME=local-path
+export SC_NAME=hostpath
 ```
 
 ### Deploy a certificate authority
 
 ```bash
 kubectl hlf ca create  --image=$CA_IMAGE --version=$CA_VERSION --storage-class=$SC_NAME --capacity=1Gi --name=org1-ca \
-    --enroll-id=enroll --enroll-pw=enrollpw --hosts=org1-ca.localho.st --istio-port=443
+    --enroll-id=enroll --enroll-pw=enrollpw --hosts=org1-ca.localho.st --istio-port=443 --namespace fabric
 
 kubectl wait --timeout=180s --for=condition=Running fabriccas.hlf.kungfusoftware.es --all
 ```
@@ -298,7 +288,7 @@ Register a user in the certification authority of the peer organization (Org1MSP
 ```bash
 # register user in CA for peers
 kubectl hlf ca register --name=org1-ca --user=peer --secret=peerpw --type=peer \
- --enroll-id enroll --enroll-secret=enrollpw --mspid Org1MSP
+ --enroll-id enroll --enroll-secret=enrollpw --mspid Org1MSP --namespace fabric
 
 ```
 
@@ -306,8 +296,8 @@ kubectl hlf ca register --name=org1-ca --user=peer --secret=peerpw --type=peer \
 
 ```bash
 kubectl hlf peer create --statedb=leveldb --image=$PEER_IMAGE --version=$PEER_VERSION --storage-class=$SC_NAME --enroll-id=peer --mspid=Org1MSP \
-        --enroll-pw=peerpw --capacity=5Gi --name=org1-peer0 --ca-name=org1-ca.default \
-        --hosts=peer0-org1.localho.st --istio-port=443
+        --enroll-pw=peerpw --capacity=5Gi --name=org1-peer0 --ca-name=org1-ca.fabric \
+        --hosts=peer0-org1.localho.st --istio-port=443 --namespace fabric
 
 
 kubectl wait --timeout=180s --for=condition=Running fabricpeers.hlf.kungfusoftware.es --all
@@ -332,7 +322,7 @@ To deploy an `Orderer` organization we have to:
 ```bash
 
 kubectl hlf ca create  --image=$CA_IMAGE --version=$CA_VERSION --storage-class=$SC_NAME --capacity=1Gi --name=ord-ca \
-    --enroll-id=enroll --enroll-pw=enrollpw --hosts=ord-ca.localho.st --istio-port=443
+    --enroll-id=enroll --enroll-pw=enrollpw --hosts=ord-ca.localho.st --istio-port=443 --namespace fabric
 
 kubectl wait --timeout=180s --for=condition=Running fabriccas.hlf.kungfusoftware.es --all
 
@@ -348,7 +338,7 @@ curl -vik https://ord-ca.localho.st:443/cainfo
 
 ```bash
 kubectl hlf ca register --name=ord-ca --user=orderer --secret=ordererpw \
-    --type=orderer --enroll-id enroll --enroll-secret=enrollpw --mspid=OrdererMSP --ca-url="https://ord-ca.localho.st:443"
+    --type=orderer --enroll-id enroll --enroll-secret=enrollpw --mspid=OrdererMSP --ca-url="https://ord-ca.localho.st:443" --namespace fabric
 
 ```
 ### Deploy orderer
@@ -357,25 +347,25 @@ kubectl hlf ca register --name=ord-ca --user=orderer --secret=ordererpw \
 
 kubectl hlf ordnode create --image=$ORDERER_IMAGE --version=$ORDERER_VERSION \
     --storage-class=$SC_NAME --enroll-id=orderer --mspid=OrdererMSP \
-    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node1 --ca-name=ord-ca.default \
-    --hosts=orderer0-ord.localho.st --admin-hosts=admin-orderer0-ord.localho.st --istio-port=443
+    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node1 --ca-name=ord-ca.fabric \
+    --hosts=orderer0-ord.localho.st --admin-hosts=admin-orderer0-ord.localho.st --istio-port=443 
 
 
 kubectl hlf ordnode create --image=$ORDERER_IMAGE --version=$ORDERER_VERSION \
     --storage-class=$SC_NAME --enroll-id=orderer --mspid=OrdererMSP \
-    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node2 --ca-name=ord-ca.default \
+    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node2 --ca-name=ord-ca.fabric \
     --hosts=orderer1-ord.localho.st --admin-hosts=admin-orderer1-ord.localho.st --istio-port=443
 
 
 kubectl hlf ordnode create --image=$ORDERER_IMAGE --version=$ORDERER_VERSION \
     --storage-class=$SC_NAME --enroll-id=orderer --mspid=OrdererMSP \
-    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node3 --ca-name=ord-ca.default \
+    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node3 --ca-name=ord-ca.fabric \
     --hosts=orderer2-ord.localho.st --admin-hosts=admin-orderer2-ord.localho.st --istio-port=443
 
 
 kubectl hlf ordnode create --image=$ORDERER_IMAGE --version=$ORDERER_VERSION \
     --storage-class=$SC_NAME --enroll-id=orderer --mspid=OrdererMSP \
-    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node4 --ca-name=ord-ca.default \
+    --enroll-pw=ordererpw --capacity=2Gi --name=ord-node4 --ca-name=ord-ca.fabric \
     --hosts=orderer3-ord.localho.st --admin-hosts=admin-orderer3-ord.localho.st --istio-port=443
 
 
@@ -406,17 +396,17 @@ To create the channel we need to first create the wallet secret, which will cont
 ```bash
 # register
 kubectl hlf ca register --name=ord-ca --user=admin --secret=adminpw \
-    --type=admin --enroll-id enroll --enroll-secret=enrollpw --mspid=OrdererMSP
+    --type=admin --enroll-id enroll --enroll-secret=enrollpw --mspid=OrdererMSP --namespace fabric
 
 # enroll
 
-kubectl hlf ca enroll --name=ord-ca --namespace=default \
+kubectl hlf ca enroll --name=ord-ca --namespace=fabric \
     --user=admin --secret=adminpw --mspid OrdererMSP \
-    --ca-name tlsca  --output orderermsp.yaml
+    --ca-name tlsca  --output orderermsp.yaml 
     
-kubectl hlf ca enroll --name=ord-ca --namespace=default \
+kubectl hlf ca enroll --name=ord-ca --namespace=fabric \
     --user=admin --secret=adminpw --mspid OrdererMSP \
-    --ca-name ca  --output orderermspsign.yaml
+    --ca-name ca  --output orderermspsign.yaml 
 ```
 
 ### Register and enrolling Org1MSP Orderer identity
@@ -424,13 +414,13 @@ kubectl hlf ca enroll --name=ord-ca --namespace=default \
 ```bash
 # register
 kubectl hlf ca register --name=org1-ca --user=admin --secret=adminpw \
-    --type=admin --enroll-id enroll --enroll-secret=enrollpw --mspid=Org1MSP
+    --type=admin --enroll-id enroll --enroll-secret=enrollpw --mspid=Org1MSP --namespace fabric
 
 # enroll
 
 kubectl hlf ca enroll --name=org1-ca --namespace=default \
     --user=admin --secret=adminpw --mspid Org1MSP \
-    --ca-name tlsca  --output org1msp-tlsca.yaml
+    --ca-name tlsca  --output org1msp-tlsca.yaml --namespace fabric
 ```
 
 
@@ -438,17 +428,17 @@ kubectl hlf ca enroll --name=org1-ca --namespace=default \
 
 ```bash
 # register
-kubectl hlf ca register --name=org1-ca --namespace=default --user=admin --secret=adminpw \
-    --type=admin --enroll-id enroll --enroll-secret=enrollpw --mspid=Org1MSP
+kubectl hlf ca register --name=org1-ca --namespace=fabric --user=admin --secret=adminpw \
+    --type=admin --enroll-id enroll --enroll-secret=enrollpw --mspid=Org1MSP 
 
 # enroll
-kubectl hlf ca enroll --name=org1-ca --namespace=default \
+kubectl hlf ca enroll --name=org1-ca --namespace=fabric \
     --user=admin --secret=adminpw --mspid Org1MSP \
-    --ca-name ca  --output org1msp.yaml
+    --ca-name ca  --output org1msp.yaml 
 
 # enroll
-kubectl hlf identity create --name org1-admin --namespace default \
-    --ca-name org1-ca --ca-namespace default \
+kubectl hlf identity create --name org1-admin --namespace fabric \
+    --ca-name org1-ca --ca-namespace fabric \
     --ca ca --mspid Org1MSP --enroll-id admin --enroll-secret adminpw
 
 
@@ -457,7 +447,7 @@ kubectl hlf identity create --name org1-admin --namespace default \
 ### Create the secret
 
 ```bash
-kubectl create secret generic wallet --namespace=default \
+kubectl create secret generic wallet --namespace=fabric \
         --from-file=org1msp.yaml=$PWD/org1msp.yaml \
         --from-file=orderermsp.yaml=$PWD/orderermsp.yaml \
         --from-file=orderermspsign.yaml=$PWD/orderermspsign.yaml
@@ -521,37 +511,37 @@ spec:
   peerOrganizations:
     - mspID: Org1MSP
       caName: "org1-ca"
-      caNamespace: "default"
+      caNamespace: "fabric"
 
   identities:
     OrdererMSP:
       secretKey: orderermsp.yaml
       secretName: wallet
-      secretNamespace: default
+      secretNamespace: fabric
     OrdererMSP-tls:
       secretKey: orderermsp.yaml
       secretName: wallet
-      secretNamespace: default
+      secretNamespace: fabric
     OrdererMSP-sign:
       secretKey: orderermspsign.yaml
       secretName: wallet
-      secretNamespace: default
+      secretNamespace: fabric
     Org1MSP:
       secretKey: org1msp.yaml
       secretName: wallet
-      secretNamespace: default
+      secretNamespace: fabric
 
   ordererOrganizations:
     - caName: "ord-ca"
-      caNamespace: "default"
+      caNamespace: "fabric"
       externalOrderersToJoin:
-        - host: ord-node1.default
+        - host: ord-node1.fabric
           port: 7053
-        - host: ord-node2.default
+        - host: ord-node2.fabric
           port: 7053
-        - host: ord-node3.default
+        - host: ord-node3.fabric
           port: 7053
-        - host: ord-node4.default
+        - host: ord-node4.fabric
           port: 7053
       mspID: OrdererMSP
       ordererEndpoints:
@@ -601,17 +591,17 @@ spec:
   hlfIdentity:
     secretKey: org1msp.yaml
     secretName: wallet
-    secretNamespace: default
+    secretNamespace: fabric
   mspId: Org1MSP
   name: demo
   externalPeersToJoin: []
   orderers:
     - certificate: |
 ${ORDERER0_TLS_CERT}
-      url: grpcs://ord-node1.default:7050
+      url: grpcs://ord-node1.fabric:7050
   peersToJoin:
     - name: org1-peer0
-      namespace: default
+      namespace: fabric
 EOF
 
 
@@ -632,19 +622,19 @@ To prepare the connection string, we have to:
 
 
 ```bash
-kubectl hlf inspect --output org1.yaml -o Org1MSP -o OrdererMSP
+kubectl hlf inspect --output org1.yaml -o Org1MSP -o OrdererMSP --namespace fabric
 ```
 
 2. Register a user in the certification authority for signing
 ```bash
 kubectl hlf ca register --name=org1-ca --user=admin --secret=adminpw --type=admin \
- --enroll-id enroll --enroll-secret=enrollpw --mspid Org1MSP  
+ --enroll-id enroll --enroll-secret=enrollpw --mspid Org1MSP  --namespace fabric
 ```
 
 3. Get the certificates using the user created above
 ```bash
 kubectl hlf ca enroll --name=org1-ca --user=admin --secret=adminpw --mspid Org1MSP \
-        --ca-name ca  --output peer-org1.yaml
+        --ca-name ca  --output peer-org1.yaml --namespace fabric
 ```
 
 4. Attach the user to the connection string
@@ -686,7 +676,7 @@ export PACKAGE_ID=$(kubectl hlf chaincode calculatepackageid --path=chaincode.tg
 echo "PACKAGE_ID=$PACKAGE_ID"
 
 kubectl hlf chaincode install --path=./chaincode.tgz \
-    --config=org1.yaml --language=golang --label=$CHAINCODE_LABEL --user=admin --peer=org1-peer0.default
+    --config=org1.yaml --language=golang --label=$CHAINCODE_LABEL --user=admin --peer=org1-peer0.fabric
 
 ```
 
@@ -700,20 +690,20 @@ kubectl hlf externalchaincode sync --image=kfsoftware/chaincode-external:latest 
     --namespace=default \
     --package-id=$PACKAGE_ID \
     --tls-required=false \
-    --replicas=1
+    --replicas=1 --namespace fabric
 ```
 
 
 ## Check installed chaincodes
 ```bash
-kubectl hlf chaincode queryinstalled --config=org1.yaml --user=admin --peer=org1-peer0.default
+kubectl hlf chaincode queryinstalled --config=org1.yaml --user=admin --peer=org1-peer0.fabric
 ```
 
 ## Approve chaincode
 ```bash
 export SEQUENCE=1
 export VERSION="1.0"
-kubectl hlf chaincode approveformyorg --config=org1.yaml --user=admin --peer=org1-peer0.default \
+kubectl hlf chaincode approveformyorg --config=org1.yaml --user=admin --peer=org1-peer0.fabric \
     --package-id=$PACKAGE_ID \
     --version "$VERSION" --sequence "$SEQUENCE" --name=asset \
     --policy="OR('Org1MSP.member')" --channel=demo
@@ -731,7 +721,7 @@ kubectl hlf chaincode commit --config=org1.yaml --user=admin --mspid=Org1MSP \
 
 ```bash
 kubectl hlf chaincode invoke --config=org1.yaml \
-    --user=admin --peer=org1-peer0.default \
+    --user=admin --peer=org1-peer0.fabric \
     --chaincode=asset --channel=demo \
     --fcn=initLedger -a '[]'
 ```
@@ -740,7 +730,7 @@ kubectl hlf chaincode invoke --config=org1.yaml \
 
 ```bash
 kubectl hlf chaincode query --config=org1.yaml \
-    --user=admin --peer=org1-peer0.default \
+    --user=admin --peer=org1-peer0.fabric \
     --chaincode=asset --channel=demo \
     --fcn=GetAllAssets -a '[]'
 ```
@@ -776,7 +766,7 @@ Chaincode installation/build can fail due to unsupported local kubertenes versio
 
 ```shell
 $ kubectl hlf chaincode install --path=./fixtures/chaincodes/fabcar/go \
-        --config=org1.yaml --language=golang --label=fabcar --user=admin --peer=org1-peer0.default
+        --config=org1.yaml --language=golang --label=fabcar --user=admin --peer=org1-peer0.fabric
 
 Error: Transaction processing for endorser [192.168.49.2:31278]: Chaincode status Code: (500) UNKNOWN.
 Description: failed to invoke backing implementation of 'InstallChaincode': could not build chaincode:
